@@ -1,0 +1,134 @@
+sources:
+  generate_syslog:
+    type: demo_logs
+    format: syslog
+    count: 100
+
+  generate_json:
+    type: demo_logs
+    format: json
+    count: 100
+    interval: 0.1
+      # .log = "I0119 11:13:51.494321       1 hosts_controller.go:151] skipping hosts configmap update (unchanged): &controllers.managedConfigMap{APIVersion:\"v1\", Kind:\"ConfigMap\", Data:map[string]string{\"hosts\":\"172.25.0.205\\tapi.internal.timescaledb-savannah-dev-ap-southeast-2.k8s.local\\n172.25.1.145\\tapi.internal.timescaledb-savannah-dev-ap-southeast-2.k8s.local\\n172.25.1.237\\tapi.internal.timescaledb-savannah-dev-ap-southeast-2.k8s.local\\n172.25.2.181\\tapi.internal.timescaledb-savannah-dev-ap-southeast-2.k8s.local\\n172.25.2.36\\tapi.internal.timescaledb-savannah-dev-ap-southeast-2.k8s.local\"}}"
+
+transforms:
+  postgres_transform:
+    inputs:
+      - generate_json
+      # - generate_syslog
+    type: remap
+    source: |-
+      dateStr = truncate(to_string(now()), 10)
+
+      .data_stream.type = "type"
+      .data_stream.dataset = "dataset"
+      .data_stream.namespace = replace(dateStr, "-", ".")
+
+
+      data = parse_json!(.message)
+      . = merge!(., data)
+
+      del(.message)
+      .log = "a"
+
+
+  reduce_postgres:
+    type: reduce
+    inputs:
+      - postgres_transform
+    group_by:
+      - .method
+    merge_strategies:
+      log: concat
+    starts_when: match(string!(.status), r'^200$')
+
+sinks:
+  emit_syslog:
+    inputs:
+      - reduce_postgres
+    type: console
+    encoding:
+      codec: json
+
+  # cloudwatch:
+    # type: aws_cloudwatch_logs
+    # inputs:
+      # - reduce_postgres
+    # auth:
+      # access_key_id: XX
+      # secret_access_key: XX
+    # create_missing_group: true
+    # create_missing_stream: true
+    # group_name: /metrics/timescale_cloud
+    # buffer:
+      # type: disk
+      # max_size: 268435488
+    # batch:
+      # batch.max_events: 250
+      # batch.timeout_secs: 1.5
+    # compression: none
+    # healthcheck: true
+    # encoding:
+      # codec: text
+    # region: us-east-1
+    # stream_name: projectID-serviceID-region
+
+  # elasticsearch:
+  #   type: elasticsearch
+  #   inputs:
+  #     - reduce_postgres
+  #     # - generate_syslog
+  #   api_version: auto
+  #   distribution:
+  #     distribution.retry_initial_backoff_secs: 1
+  #     distribution.retry_max_duration_secs: 3600
+  #   data_stream:
+  #     data_stream.auto_routing: true
+  #     data_stream.sync_fields: false
+
+  #   endpoints:
+  #     - http://elasticsearch:9200
+  #   id_key: id
+  #   mode: data_stream
+  #   batch:
+  #     batch.max_bytes: 262144
+  #     batch.max_events: 500
+  #     batch.timeout_secs: 1
+  #   # buffer:
+  #   # - type: disk
+  #   # buffer:
+  #     #max_events: 3000000 # An average of 3kb per event, this about 900Mb of events.
+  #     # buffer.max_size: 1073741824 # 1GiB.
+  #     # buffer.type: disk
+  #     # buffer.when_full: block
+
+
+  #   compression: none
+  #   healthcheck: true
+
+#    Comment for PSQL test
+#    kubernetes_filter:
+#      inputs:
+#        - kubernetes
+#      type: route
+#      route:
+#        kops_controller_noise: includes(["skipping hosts configmap update"], .message)
+
+ # Equivalent to a concat
+#    postgres_transform:
+#      inputs:
+#        - postgres_route.match
+#      type: remap
+#      source: |-
+#        . = join!(["TimescaleDB", .message])
+
+
+# .kubernetes.pod_labels.app_name = del(.kubernetes.pod_labels.app)
+#    Comment for PSQL test
+#    internal_logs_transform:
+#      inputs:
+#        - internal_logs
+#      type: remap
+#      source: |-
+#          .tags.hostname = del(.tags.host)
+    

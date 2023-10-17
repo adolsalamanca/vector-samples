@@ -1,0 +1,43 @@
+version: '3.0'
+services:
+#  elasticsearch:
+#    container_name: elasticsearch
+#    image: docker.elastic.co/elasticsearch/elasticsearch:8.2.2
+#    environment:
+#      - xpack.security.enabled=false
+#      - discovery.type=single-node
+#    ports:
+#      - '9200:9200'
+#
+#  kibana:
+#    container_name: kibana
+#    image: docker.elastic.co/kibana/kibana:8.2.2
+#    environment:
+#      - 'ELASTICSEARCH_HOSTS=http://elasticsearch:9200'
+#    depends_on:
+#      - elasticsearch
+#    ports:
+#      - '5601:5601'
+
+  vector:
+    container_name: vector
+    image: timberio/vector:0.29.X-alpine
+    entrypoint: >
+      vector
+        --config
+        /etc/vector/vector.yaml
+    # environment:
+    #  - 'RUST_BACKTRACE=1' 
+    #environment:
+    #  - 'AWS_ACCESS_KEY_ID=XX'
+    #  - 'AWS_SECRET_ACCESS_KEY=YY'
+#    environment:
+#      - 'ELASTICSEARCH_HOST=elasticsearch'
+#      - 'ELASTICSEARCH_PORT=9200'
+    ports:
+      - '8686:8686'
+    volumes:
+      - ./syslog.yaml:/etc/vector/vector.yaml:ro
+      #- ./vector.json:/etc/vector/vector.json:ro
+      #- ./vector_multiline_password.yaml:/etc/vector/vector.yaml:ro # Specify config used by vector      
+      #- ./psql.log:/var/log/pods/btjbspmqm4_eedz1osdcb-an-0_ed15bacf-1b6a-4bb6-96cb-e803340c36b2/postgres/0.log # Emulate this is a local log from kubernetes
